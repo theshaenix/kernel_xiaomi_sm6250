@@ -2100,6 +2100,57 @@ static enum mmc_blk_status mmc_blk_err_check(struct mmc_card *card,
 
 	/* Some errors (ECC) are flagged on the next commmand, so check stop, too */
 	if (brq->data.error || brq->stop.error) {
+#ifdef VENDOR_EDIT
+//Gavin.Lei@BSP.Storage.SDCard 2020-7-20 Add for abnormal SD card compatible
+		if ((-ETIMEDOUT == brq->data.error) && (mmc_card_sd(card))) {
+			if ((rq_data_dir(req) == READ) && (card->host->old_blk_rq_rd_pos != blk_rq_pos(req))) {
+				card->host->old_blk_rq_rd_pos = blk_rq_pos(req);
+				if (!card->host->card_first_rd_timeout) {
+						card->host->card_first_rd_timeout = true;
+						card->host->card_rd_timeout_start = jiffies;
+						card->host->card_multiread_timeout_err_cnt = 0;
+				} else {
+					if (time_before_eq(jiffies, card->host->card_rd_timeout_start + msecs_to_jiffies(MMC_MULTIREAD_CNT_WINDOW_S * 1000))) {
+						if (card->host->card_multiread_timeout_err_cnt < MAX_MULTIREAD_TIMEOUT_ERR_CNT) {
+							card->host->card_multiread_timeout_err_cnt++;
+						} else {
+							card->host->card_is_rd_abnormal = true;
+						}
+					} else {
+						card->host->card_rd_timeout_start = jiffies;
+						card->host->card_multiread_timeout_err_cnt = 0;
+					}
+				}
+
+				pr_err("%s: read SD Card sector %u timeout, error count %#d\n",
+					req->rq_disk->disk_name, (unsigned)blk_rq_pos(req),
+					card->host->card_multiread_timeout_err_cnt);
+			}
+			if ((rq_data_dir(req) == WRITE) && (card->host->old_blk_rq_wr_pos != blk_rq_pos(req))) {
+				card->host->old_blk_rq_wr_pos = blk_rq_pos(req);
+				if (!card->host->card_first_wr_timeout) {
+					card->host->card_first_wr_timeout = true;
+					card->host->card_wr_timeout_start = jiffies;
+					card->host->card_multiwrite_timeout_err_cnt = 0;
+				} else {
+					if (time_before_eq(jiffies, card->host->card_wr_timeout_start + msecs_to_jiffies(MMC_MULTIWRITE_CNT_WINDOW_S * 1000))) {
+						if (card->host->card_multiwrite_timeout_err_cnt < MAX_MULTIWRITE_TIMEOUT_ERR_CNT) {
+							card->host->card_multiwrite_timeout_err_cnt++;
+						} else {
+							card->host->card_is_wr_abnormal = true;
+						}
+					} else {
+						card->host->card_wr_timeout_start = jiffies;
+						card->host->card_multiwrite_timeout_err_cnt = 0;
+					}
+				}
+				pr_err("%s: write SD Card sector %u timeout, error count %#d\n",
+					req->rq_disk->disk_name, (unsigned)blk_rq_pos(req),
+					card->host->card_multiwrite_timeout_err_cnt);
+			}
+		}
+#endif /* VENDOR_EDIT */
+
 		if (need_retune && !brq->retune_retry_done) {
 			pr_debug("%s: retrying because a re-tune was needed\n",
 				 req->rq_disk->disk_name);
