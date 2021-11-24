@@ -271,6 +271,10 @@ struct fuse_file_lock {
 #define FUSE_POSIX_ACL		(1 << 20)
 #define FUSE_PASSTHROUGH	(1 << 31)
 
+#ifdef VENDOR_EDIT
+//shubin@BSP.Kernel.FS 2020/08/20 improving fuse storage performance
+#define FUSE_SHORTCIRCUIT	(1 << 30)
+#endif /* VENDOR_EDIT */
 /**
  * CUSE INIT request/reply flags
  *

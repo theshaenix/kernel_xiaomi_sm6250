@@ -171,6 +171,12 @@ struct fuse_file {
 
 	/** Has flock been performed on this file? */
 	bool flock:1;
+
+#ifdef VENDOR_EDIT
+//shubin@BSP.Kernel.FS 2020/08/20 improving fuse storage performance
+	/* the read write file */
+	struct file *rw_lower_file;
+#endif /* VENDOR_EDIT */
 };
 
 /** One input argument of a request */
@@ -228,6 +234,9 @@ struct fuse_out {
 
 	/** Array of arguments */
 	struct fuse_arg args[2];
+
+	/* Path used for completing d_canonical_path */
+	struct path *canonical_path;
 };
 
 /** FUSE page descriptor */
@@ -250,7 +259,15 @@ struct fuse_args {
 		unsigned argvar:1;
 		unsigned numargs;
 		struct fuse_arg args[2];
+
+		/* Path used for completing d_canonical_path */
+		struct path *canonical_path;
 	} out;
+#ifdef VENDOR_EDIT
+//shubin@BSP.Kernel.FS 2020/08/20 improving fuse storage performance
+	/** fuse shortcircuit file  */
+	struct file *private_lower_rw_file;
+#endif /* VENDOR_EDIT */
 };
 
 #define FUSE_ARGS(args) struct fuse_args args = {}
@@ -388,9 +405,6 @@ struct fuse_req {
 	/** Inode used in the request or NULL */
 	struct inode *inode;
 
-	/** Path used for completing d_canonical_path */
-	struct path *canonical_path;
-
 	/** AIO control block */
 	struct fuse_io_priv *io;
 
@@ -402,11 +416,20 @@ struct fuse_req {
 
 	/** Request is stolen from fuse_file->reserved_req */
 	struct file *stolen_file;
+
+#ifdef VENDOR_EDIT
+//shubin@BSP.Kernel.FS 2020/08/20 improving fuse storage performance
+	/** fuse shortcircuit file  */
+	struct file *private_lower_rw_file;
+#endif /* VENDOR_EDIT */
 };
 
 struct fuse_iqueue {
 	/** Connection established */
 	unsigned connected;
+
+	/** Lock protecting accesses to members of this structure */
+	spinlock_t lock;
 
 	/** Readers of the connection are waiting on this */
 	wait_queue_head_t waitq;
@@ -562,6 +585,11 @@ struct fuse_conn {
 	/** handle fs handles killing suid/sgid/cap on write/chown/trunc */
 	unsigned handle_killpriv:1;
 
+#ifdef VENDOR_EDIT
+//shubin@BSP.Kernel.FS 2020/08/20 improving fuse storage performance
+	/** Shortcircuited IO. */
+	unsigned shortcircuit_io:1;
+#endif /* VENDOR_EDIT */
 	/*
 	 * The following bitfields are only for optimization purposes
 	 * and hence races in setting them will not cause malfunction
@@ -1033,3 +1061,10 @@ ssize_t fuse_passthrough_write_iter(struct kiocb *iocb, struct iov_iter *from);
 ssize_t fuse_passthrough_mmap(struct file *file, struct vm_area_struct *vma);
 
 #endif /* _FS_FUSE_I_H */
+
+#ifdef CONFIG_OPLUS_FEATURE_ACM
+//Yuwei.Guan@BSP.Kernel.FS,2020/07/08, Add for acm
+void acm_fuse_init_cache(void);
+void acm_fuse_free_cache(void);
+#endif
+
